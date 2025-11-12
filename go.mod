@@ -1,10 +1,10 @@
 module github.com/k8s-manifest-kit/engine
 
-go 1.24.8
+go 1.24.10
 
 require (
 	github.com/k8s-manifest-kit/pkg v0.1.0
-	github.com/lburgazzoli/gomega-matchers v0.1.2
+	github.com/lburgazzoli/gomega-matchers v0.4.0
 	github.com/onsi/gomega v1.38.2
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.34.1
