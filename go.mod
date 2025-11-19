@@ -1,6 +1,6 @@
 module github.com/k8s-manifest-kit/engine
 
-go 1.24.8
+go 1.24.10
 
 require (
 	github.com/k8s-manifest-kit/pkg v0.1.0
