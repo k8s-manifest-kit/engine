@@ -152,15 +152,13 @@ func (e *Engine) renderParallel(ctx context.Context, values map[string]any) ([]u
 	var wg sync.WaitGroup
 
 	for i, renderer := range e.options.Renderers {
-		wg.Add(1)
-		go func(idx int, r types.Renderer) {
-			defer wg.Done()
-			objects, err := e.processRenderer(ctx, r, values)
-			results[idx] = result{
+		wg.Go(func() {
+			objects, err := e.processRenderer(ctx, renderer, values)
+			results[i] = result{
 				objects: objects,
 				err:     err,
 			}
-		}(i, renderer)
+		})
 	}
 
 	wg.Wait()
