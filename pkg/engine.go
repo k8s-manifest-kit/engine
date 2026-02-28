@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/k8s-manifest-kit/pkg/util/metrics"
@@ -70,18 +69,15 @@ func (e *Engine) Render(ctx context.Context, opts ...RenderOption) ([]unstructur
 		opt.ApplyTo(&renderOpts)
 	}
 
-	var allObjects []unstructured.Unstructured
-	var err error
+	allObjects := make([]unstructured.Unstructured, 0)
 
-	// Process renderers in parallel or sequentially
-	if e.options.Parallel {
-		allObjects, err = e.renderParallel(ctx, renderOpts.Values)
-	} else {
-		allObjects, err = e.renderSequential(ctx, renderOpts.Values)
-	}
+	for _, renderer := range e.options.Renderers {
+		objects, err := e.processRenderer(ctx, renderer, renderOpts.Values)
+		if err != nil {
+			return nil, fmt.Errorf("rendering failed: %w", err)
+		}
 
-	if err != nil {
-		return nil, fmt.Errorf("rendering failed: %w", err)
+		allObjects = append(allObjects, objects...)
 	}
 
 	// Apply filters
@@ -122,56 +118,4 @@ func (e *Engine) processRenderer(
 	}
 
 	return objects, nil
-}
-
-// renderSequential processes renderers sequentially in order.
-func (e *Engine) renderSequential(ctx context.Context, values map[string]any) ([]unstructured.Unstructured, error) {
-	allObjects := make([]unstructured.Unstructured, 0)
-
-	for _, renderer := range e.options.Renderers {
-		objects, err := e.processRenderer(ctx, renderer, values)
-		if err != nil {
-			return nil, err
-		}
-
-		allObjects = append(allObjects, objects...)
-	}
-
-	return allObjects, nil
-}
-
-// renderParallel processes all renderers concurrently using goroutines.
-// Results are collected in the original renderer order for consistent output.
-func (e *Engine) renderParallel(ctx context.Context, values map[string]any) ([]unstructured.Unstructured, error) {
-	type result struct {
-		objects []unstructured.Unstructured
-		err     error
-	}
-
-	results := make([]result, len(e.options.Renderers))
-	var wg sync.WaitGroup
-
-	for i, renderer := range e.options.Renderers {
-		wg.Go(func() {
-			objects, err := e.processRenderer(ctx, renderer, values)
-			results[i] = result{
-				objects: objects,
-				err:     err,
-			}
-		})
-	}
-
-	wg.Wait()
-
-	// Collect results in original renderer order
-	allObjects := make([]unstructured.Unstructured, 0)
-	for _, res := range results {
-		if res.err != nil {
-			return nil, res.err
-		}
-
-		allObjects = append(allObjects, res.objects...)
-	}
-
-	return allObjects, nil
 }

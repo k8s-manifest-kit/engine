@@ -46,9 +46,6 @@ type Options struct {
 
 	// Renderers are the manifest sources to process (e.g., Helm, Kustomize, YAML).
 	Renderers []types.Renderer
-
-	// Parallel enables parallel execution of renderers.
-	Parallel bool
 }
 
 // ApplyTo implements the Option interface for Options.
@@ -56,7 +53,6 @@ func (opts Options) ApplyTo(target *Options) {
 	target.Renderers = append(target.Renderers, opts.Renderers...)
 	target.Filters = append(target.Filters, opts.Filters...)
 	target.Transformers = append(target.Transformers, opts.Transformers...)
-	target.Parallel = opts.Parallel
 
 	if opts.Values != nil {
 		target.Values = maps.Clone(opts.Values)
@@ -112,16 +108,6 @@ func WithRenderFilter(f types.Filter) RenderOption {
 func WithRenderTransformer(t types.Transformer) RenderOption {
 	return util.FunctionalOption[RenderOptions](func(o *RenderOptions) {
 		o.Transformers = append(o.Transformers, t)
-	})
-}
-
-// WithParallel enables or disables parallel execution of renderers.
-// When enabled, all renderers execute concurrently using goroutines.
-// When disabled (default), renderers execute sequentially.
-// Parallel execution is beneficial for I/O-bound renderers (Helm OCI fetch, file reads).
-func WithParallel(enabled bool) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
-		o.Parallel = enabled
 	})
 }
 
