@@ -60,6 +60,8 @@ linters:
           disabled: true  # Interface methods often don't need the receiver
         - name: empty-lines
           disabled: true  # Extra empty lines in test functions are acceptable
+        - name: max-public-structs
+          disabled: true  # Types packages are expected to export many types
 
 formatters:
   enable:

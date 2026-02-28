@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	engine "github.com/k8s-manifest-kit/engine/pkg"
+	"github.com/k8s-manifest-kit/engine/pkg/render"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 
 	. "github.com/onsi/gomega"
@@ -159,7 +160,7 @@ func TestEngineRender(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		filter := podFilter()
-		objects, err := e.Render(t.Context(), engine.WithRenderFilter(filter))
+		objects, err := e.Render(t.Context(), render.WithFilter(filter))
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(objects).To(HaveLen(1))
 		g.Expect(objects[0].GetKind()).To(Equal("Pod"))
@@ -177,7 +178,7 @@ func TestEngineRender(t *testing.T) {
 		transformer := addLabels(map[string]string{
 			"render-time": "true",
 		})
-		objects, err := e.Render(t.Context(), engine.WithRenderTransformer(transformer))
+		objects, err := e.Render(t.Context(), render.WithTransformer(transformer))
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(objects).To(HaveLen(1))
 		g.Expect(objects[0].GetLabels()).To(HaveKeyWithValue("render-time", "true"))
@@ -194,7 +195,6 @@ func TestEngineRender(t *testing.T) {
 		}, nil)
 		renderer.On("Name").Return("mock")
 
-		// Engine-level: only Pods
 		engineFilter := podFilter()
 		e, err := engine.New(
 			engine.WithRenderer(renderer),
@@ -202,14 +202,13 @@ func TestEngineRender(t *testing.T) {
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Render-time: only default namespace
 		renderFilter := func(_ context.Context, obj unstructured.Unstructured) (bool, error) {
 			return obj.GetNamespace() == defaultNamespace || obj.GetNamespace() == "", nil
 		}
 
-		objects, err := e.Render(t.Context(), engine.WithRenderFilter(renderFilter))
+		objects, err := e.Render(t.Context(), render.WithFilter(renderFilter))
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(objects).To(HaveLen(2)) // pod1 (no namespace) and pod2 (default)
+		g.Expect(objects).To(HaveLen(2))
 	})
 
 	t.Run("should combine engine-level and render-time transformers", func(t *testing.T) {
@@ -218,7 +217,6 @@ func TestEngineRender(t *testing.T) {
 		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{makePod("pod1")}, nil)
 		renderer.On("Name").Return("mock")
 
-		// Engine-level transformer
 		engineTransformer := addLabels(map[string]string{
 			"engine": "level",
 		})
@@ -228,12 +226,11 @@ func TestEngineRender(t *testing.T) {
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Render-time transformer
 		renderTransformer := addLabels(map[string]string{
 			"render": "time",
 		})
 
-		objects, err := e.Render(t.Context(), engine.WithRenderTransformer(renderTransformer))
+		objects, err := e.Render(t.Context(), render.WithTransformer(renderTransformer))
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(objects).To(HaveLen(1))
 		g.Expect(objects[0].GetLabels()).To(HaveKeyWithValue("engine", "level"))
@@ -374,7 +371,7 @@ func TestEngineRender(t *testing.T) {
 		g.Expect(objects[0].GetLabels()).To(HaveKeyWithValue("label2", "value2"))
 	})
 
-	t.Run("should append struct-based RenderOptions filters to engine-level filters", func(t *testing.T) {
+	t.Run("should append struct-based render.Options filters to engine-level filters", func(t *testing.T) {
 		g := NewWithT(t)
 		renderer := new(mockRenderer)
 		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{
@@ -395,7 +392,7 @@ func TestEngineRender(t *testing.T) {
 			return obj.GetNamespace() == defaultNamespace, nil
 		}
 
-		objects, err := e.Render(t.Context(), engine.RenderOptions{
+		objects, err := e.Render(t.Context(), render.Options{
 			Filters: []types.Filter{renderFilter},
 		})
 		g.Expect(err).ToNot(HaveOccurred())
@@ -403,7 +400,7 @@ func TestEngineRender(t *testing.T) {
 		g.Expect(objects[0].GetName()).To(Equal("pod1"))
 	})
 
-	t.Run("should append struct-based RenderOptions transformers to engine-level transformers", func(t *testing.T) {
+	t.Run("should append struct-based render.Options transformers to engine-level transformers", func(t *testing.T) {
 		g := NewWithT(t)
 		renderer := new(mockRenderer)
 		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{makePod("pod1")}, nil)
@@ -418,13 +415,133 @@ func TestEngineRender(t *testing.T) {
 
 		renderTransformer := addLabels(map[string]string{"render": "time"})
 
-		objects, err := e.Render(t.Context(), engine.RenderOptions{
+		objects, err := e.Render(t.Context(), render.Options{
 			Transformers: []types.Transformer{renderTransformer},
 		})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(objects).To(HaveLen(1))
 		g.Expect(objects[0].GetLabels()).To(HaveKeyWithValue("engine", "level"))
 		g.Expect(objects[0].GetLabels()).To(HaveKeyWithValue("render", "time"))
+	})
+
+	t.Run("should apply engine-level post-renderer", func(t *testing.T) {
+		g := NewWithT(t)
+		renderer := new(mockRenderer)
+		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{
+			makePod("pod1"),
+			makePod("pod2"),
+		}, nil)
+		renderer.On("Name").Return("mock")
+
+		reversePR := func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			for i, j := 0, len(objects)-1; i < j; i, j = i+1, j-1 {
+				objects[i], objects[j] = objects[j], objects[i]
+			}
+
+			return objects, nil
+		}
+
+		e, err := engine.New(
+			engine.WithRenderer(renderer),
+			engine.WithPostRenderer(reversePR),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		objects, err := e.Render(t.Context())
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(objects).To(HaveLen(2))
+		g.Expect(objects[0].GetName()).To(Equal("pod2"))
+		g.Expect(objects[1].GetName()).To(Equal("pod1"))
+	})
+
+	t.Run("should apply render-time post-renderer", func(t *testing.T) {
+		g := NewWithT(t)
+		renderer := new(mockRenderer)
+		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{
+			makePod("pod1"),
+			makePod("pod2"),
+			makePod("pod3"),
+		}, nil)
+		renderer.On("Name").Return("mock")
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		keepFirst := func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			if len(objects) > 0 {
+				return objects[:1], nil
+			}
+
+			return objects, nil
+		}
+
+		objects, err := e.Render(t.Context(), render.WithPostRenderer(keepFirst))
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(objects).To(HaveLen(1))
+		g.Expect(objects[0].GetName()).To(Equal("pod1"))
+	})
+
+	t.Run("should combine engine-level and render-time post-renderers", func(t *testing.T) {
+		g := NewWithT(t)
+		renderer := new(mockRenderer)
+		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{
+			makePod("pod1"),
+			makePod("pod2"),
+		}, nil)
+		renderer.On("Name").Return("mock")
+
+		enginePR := func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			for i := range objects {
+				k8s.SetLabel(&objects[i], "engine-pr", "applied")
+			}
+
+			return objects, nil
+		}
+
+		e, err := engine.New(
+			engine.WithRenderer(renderer),
+			engine.WithPostRenderer(enginePR),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		renderPR := func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			for i := range objects {
+				k8s.SetLabel(&objects[i], "render-pr", "applied")
+			}
+
+			return objects, nil
+		}
+
+		objects, err := e.Render(t.Context(), render.WithPostRenderer(renderPR))
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(objects).To(HaveLen(2))
+
+		for _, obj := range objects {
+			g.Expect(obj.GetLabels()).To(HaveKeyWithValue("engine-pr", "applied"))
+			g.Expect(obj.GetLabels()).To(HaveKeyWithValue("render-pr", "applied"))
+		}
+	})
+
+	t.Run("should return error from failing post-renderer", func(t *testing.T) {
+		g := NewWithT(t)
+		renderer := new(mockRenderer)
+		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{makePod("pod1")}, nil)
+		renderer.On("Name").Return("mock")
+
+		failingPR := func(_ context.Context, _ []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			return nil, errors.New("post-renderer failed")
+		}
+
+		e, err := engine.New(
+			engine.WithRenderer(renderer),
+			engine.WithPostRenderer(failingPR),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		objects, err := e.Render(t.Context())
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("post-renderer failed"))
+		g.Expect(objects).To(BeNil())
 	})
 }
 
@@ -504,7 +621,7 @@ type mockRenderer struct {
 	mock.Mock
 }
 
-func (m *mockRenderer) Process(ctx context.Context, values map[string]any) ([]unstructured.Unstructured, error) {
+func (m *mockRenderer) Process(ctx context.Context, values types.Values) ([]unstructured.Unstructured, error) {
 	args := m.Called(ctx, values)
 	//nolint:wrapcheck
 	return args.Get(0).([]unstructured.Unstructured), args.Error(1)
@@ -520,24 +637,24 @@ func TestRenderTimeValues(t *testing.T) {
 
 	t.Run("should pass render-time values to renderer", func(t *testing.T) {
 		g := NewWithT(t)
-		var capturedValues map[string]any
+		var capturedValues types.Values
 		renderer := new(mockRenderer)
 		renderer.On("Name").Return("mock")
 		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			capturedValues = args.Get(1).(map[string]any)
+			capturedValues = args.Get(1).(types.Values)
 		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
 
 		e, err := engine.New(engine.WithRenderer(renderer))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		renderValues := map[string]any{
+		renderValues := types.Values{
 			"replicaCount": 3,
 			"image": map[string]any{
 				"tag": "v2.0",
 			},
 		}
 
-		objects, err := e.Render(t.Context(), engine.WithValues(renderValues))
+		objects, err := e.Render(t.Context(), render.WithValues(renderValues))
 
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(objects).Should(HaveLen(1))
@@ -546,11 +663,11 @@ func TestRenderTimeValues(t *testing.T) {
 
 	t.Run("should pass empty map when no values provided", func(t *testing.T) {
 		g := NewWithT(t)
-		var capturedValues map[string]any
+		var capturedValues types.Values
 		renderer := new(mockRenderer)
 		renderer.On("Name").Return("mock")
 		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			capturedValues = args.Get(1).(map[string]any)
+			capturedValues = args.Get(1).(types.Values)
 		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
 
 		e, err := engine.New(engine.WithRenderer(renderer))
@@ -565,18 +682,18 @@ func TestRenderTimeValues(t *testing.T) {
 
 	t.Run("should pass same values to multiple renderers", func(t *testing.T) {
 		g := NewWithT(t)
-		var capturedValues1, capturedValues2 map[string]any
+		var capturedValues1, capturedValues2 types.Values
 
 		renderer1 := new(mockRenderer)
 		renderer1.On("Name").Return("renderer1")
 		renderer1.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			capturedValues1 = args.Get(1).(map[string]any)
+			capturedValues1 = args.Get(1).(types.Values)
 		}).Return([]unstructured.Unstructured{makePod("pod1")}, nil)
 
 		renderer2 := new(mockRenderer)
 		renderer2.On("Name").Return("renderer2")
 		renderer2.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			capturedValues2 = args.Get(1).(map[string]any)
+			capturedValues2 = args.Get(1).(types.Values)
 		}).Return([]unstructured.Unstructured{makePod("pod2")}, nil)
 
 		e, err := engine.New(
@@ -585,11 +702,11 @@ func TestRenderTimeValues(t *testing.T) {
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		renderValues := map[string]any{
+		renderValues := types.Values{
 			"env": "production",
 		}
 
-		objects, err := e.Render(t.Context(), engine.WithValues(renderValues))
+		objects, err := e.Render(t.Context(), render.WithValues(renderValues))
 
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(objects).Should(HaveLen(2))
@@ -597,23 +714,23 @@ func TestRenderTimeValues(t *testing.T) {
 		g.Expect(capturedValues2).Should(Equal(renderValues))
 	})
 
-	t.Run("should work with struct-based RenderOptions", func(t *testing.T) {
+	t.Run("should work with struct-based render.Options", func(t *testing.T) {
 		g := NewWithT(t)
-		var capturedValues map[string]any
+		var capturedValues types.Values
 		renderer := new(mockRenderer)
 		renderer.On("Name").Return("mock")
 		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			capturedValues = args.Get(1).(map[string]any)
+			capturedValues = args.Get(1).(types.Values)
 		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
 
 		e, err := engine.New(engine.WithRenderer(renderer))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		renderValues := map[string]any{
+		renderValues := types.Values{
 			"key": "value",
 		}
 
-		objects, err := e.Render(t.Context(), engine.RenderOptions{
+		objects, err := e.Render(t.Context(), render.Options{
 			Values: renderValues,
 		})
 
@@ -644,7 +761,6 @@ func TestSourceAnnotations(t *testing.T) {
 		unstrPod, err := k8s.ToUnstructured(pod)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Mock renderer that returns objects with source annotations
 		renderer := new(mockRenderer)
 		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{*unstrPod}, nil)
 		renderer.On("Name").Return("mock")
@@ -659,7 +775,6 @@ func TestSourceAnnotations(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(objects).Should(HaveLen(1))
 
-		// Verify source annotations are present
 		annotations := objects[0].GetAnnotations()
 		g.Expect(annotations).Should(HaveKeyWithValue(types.AnnotationSourceType, "test-renderer"))
 	})
@@ -679,7 +794,6 @@ func TestSourceAnnotations(t *testing.T) {
 		unstrPod, err := k8s.ToUnstructured(pod)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Mock renderer that returns objects without source annotations
 		renderer := new(mockRenderer)
 		renderer.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{*unstrPod}, nil)
 		renderer.On("Name").Return("mock")
@@ -694,7 +808,6 @@ func TestSourceAnnotations(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(objects).Should(HaveLen(1))
 
-		// Verify no source annotations are present
 		annotations := objects[0].GetAnnotations()
 		g.Expect(annotations).ShouldNot(HaveKey(types.AnnotationSourceType))
 	})
@@ -721,7 +834,6 @@ func TestSourceAnnotations(t *testing.T) {
 			},
 		}
 
-		// Set source annotation on pod1
 		pod1.Annotations = map[string]string{
 			types.AnnotationSourceType: "test-renderer-1",
 		}
@@ -732,12 +844,10 @@ func TestSourceAnnotations(t *testing.T) {
 		unstrPod2, err := k8s.ToUnstructured(pod2)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Mock renderer that returns pod with annotations
 		renderer1 := new(mockRenderer)
 		renderer1.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{*unstrPod1}, nil)
 		renderer1.On("Name").Return("mock")
 
-		// Mock renderer that returns pod without annotations
 		renderer2 := new(mockRenderer)
 		renderer2.On("Process", mock.Anything, mock.Anything).Return([]unstructured.Unstructured{*unstrPod2}, nil)
 		renderer2.On("Name").Return("mock")
@@ -753,7 +863,6 @@ func TestSourceAnnotations(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(objects).Should(HaveLen(2))
 
-		// Find objects by name and verify annotations
 		for _, obj := range objects {
 			annotations := obj.GetAnnotations()
 			if obj.GetName() == "pod-with-annotations" {

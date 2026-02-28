@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/k8s-manifest-kit/engine/pkg/pipeline"
+	"github.com/k8s-manifest-kit/engine/pkg/render"
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 )
 
@@ -22,9 +23,10 @@ type Engine struct {
 // New creates a new Engine with the given options.
 func New(opts ...Option) (*Engine, error) {
 	options := Options{
-		Renderers:    make([]types.Renderer, 0),
-		Filters:      make([]types.Filter, 0),
-		Transformers: make([]types.Transformer, 0),
+		Renderers:     make([]types.Renderer, 0),
+		Filters:       make([]types.Filter, 0),
+		Transformers:  make([]types.Transformer, 0),
+		PostRenderers: make([]types.PostRenderer, 0),
 	}
 
 	for _, opt := range opts {
@@ -47,24 +49,23 @@ func New(opts ...Option) (*Engine, error) {
 // Render processes all inputs associated with the registered renderer configurations
 // and returns a consolidated slice of unstructured.Unstructured objects.
 //
-// The rendering pipeline has three stages for filters and transformers:
-//  1. renderer-specific: Each renderer applies its own filters/transformers during Process()
-//  2. engine-level: Filters/transformers configured via New() are applied to aggregated results
-//  3. render-time: Filters/transformers passed via opts are merged with engine-level ones
+// The rendering pipeline:
+//  1. Render-time options are merged with engine-level options
+//  2. Each renderer executes Process() with deep-cloned values
+//  3. Global Filters -> Transformers -> PostRenderers are applied to combined output
 //
 // Render-time options are additive - they append to engine-level options.
 // Render-time values are passed to all renderers and deep merged with Source-level values.
-func (e *Engine) Render(ctx context.Context, opts ...RenderOption) ([]unstructured.Unstructured, error) {
+func (e *Engine) Render(ctx context.Context, opts ...render.Option) ([]unstructured.Unstructured, error) {
 	startTime := time.Now()
 
-	// Initialize render options by cloning the engine's options
-	renderOpts := RenderOptions{
-		Filters:      slices.Clone(e.options.Filters),
-		Transformers: slices.Clone(e.options.Transformers),
-		Values:       make(map[string]any),
+	renderOpts := render.Options{
+		Filters:       slices.Clone(e.options.Filters),
+		Transformers:  slices.Clone(e.options.Transformers),
+		PostRenderers: slices.Clone(e.options.PostRenderers),
+		Values:        make(types.Values),
 	}
 
-	// Apply render options
 	for _, opt := range opts {
 		opt.ApplyTo(&renderOpts)
 	}
@@ -72,7 +73,9 @@ func (e *Engine) Render(ctx context.Context, opts ...RenderOption) ([]unstructur
 	allObjects := make([]unstructured.Unstructured, 0)
 
 	for _, renderer := range e.options.Renderers {
-		objects, err := e.processRenderer(ctx, renderer, renderOpts.Values)
+		rValues := renderOpts.Values.DeepClone()
+
+		objects, err := e.processRenderer(ctx, renderer, rValues)
 		if err != nil {
 			return nil, fmt.Errorf("rendering failed: %w", err)
 		}
@@ -80,28 +83,27 @@ func (e *Engine) Render(ctx context.Context, opts ...RenderOption) ([]unstructur
 		allObjects = append(allObjects, objects...)
 	}
 
-	// Apply filters
-	filtered, err := pipeline.ApplyFilters(ctx, allObjects, renderOpts.Filters)
+	chain := types.BuildPostRendererChain(
+		renderOpts.Filters,
+		renderOpts.Transformers,
+		renderOpts.PostRenderers,
+	)
+
+	result, err := pipeline.ApplyPostRenderers(ctx, allObjects, chain)
 	if err != nil {
-		return nil, fmt.Errorf("engine filter error: %w", err)
+		return nil, fmt.Errorf("engine post-renderer error: %w", err)
 	}
 
-	// Apply transformers
-	transformed, err := pipeline.ApplyTransformers(ctx, filtered, renderOpts.Transformers)
-	if err != nil {
-		return nil, fmt.Errorf("engine transformer error: %w", err)
-	}
+	metrics.ObserveRender(ctx, time.Since(startTime), len(result))
 
-	metrics.ObserveRender(ctx, time.Since(startTime), len(transformed))
-
-	return transformed, nil
+	return result, nil
 }
 
 // processRenderer executes a single renderer with timing, metrics, and error handling.
 func (e *Engine) processRenderer(
 	ctx context.Context,
 	renderer types.Renderer,
-	values map[string]any,
+	values types.Values,
 ) ([]unstructured.Unstructured, error) {
 	startTime := time.Now()
 	objects, err := renderer.Process(ctx, values)
