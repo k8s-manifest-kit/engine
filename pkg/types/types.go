@@ -54,18 +54,6 @@ func (v Values) DeepClone() Values {
 	return utilmaps.DeepCloneMap(v)
 }
 
-// Source is a placeholder type for renderer source types.
-// Each renderer defines its own concrete Source struct; this alias allows
-// the SourceSelector signature to be defined centrally without depending
-// on any specific renderer.
-type Source = any
-
-// SourceSelector decides whether a source should be rendered.
-// It receives the context and the source (as any), and returns true to include
-// the source or false to skip it. Evaluated before rendering.
-// Use source.Selector[T] to build type-safe selectors for a concrete Source type.
-type SourceSelector func(ctx context.Context, source Source) (bool, error)
-
 // PostRenderer runs after rendering at its scope level.
 // It receives the full batch of rendered objects and can modify, reorder, validate,
 // or enrich them as a whole.

@@ -15,10 +15,13 @@ import (
 // Returns true if the source should be rendered (all selectors pass).
 // Returns false if any selector rejects the source.
 // Returns an error if any selector fails.
-func ApplySourceSelectors(
+//
+// S is the concrete source type for the renderer (e.g., helm.Source, mem.Source).
+// The type parameter is inferred from the call site arguments.
+func ApplySourceSelectors[S any](
 	ctx context.Context,
-	source types.Source,
-	selectors []types.SourceSelector,
+	source S,
+	selectors []func(context.Context, S) (bool, error),
 ) (bool, error) {
 	for _, selector := range selectors {
 		ok, err := selector(ctx, source)
