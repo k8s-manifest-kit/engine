@@ -10,9 +10,9 @@ The **Engine** component of k8s-manifest-kit orchestrates the rendering pipeline
 
 ## Documentation
 
-- **[README.md](README.md)** - Module overview and quick start
-- **[docs/design.md](docs/design.md)** - Architecture, three-level pipeline, and design decisions
-- **[docs/development.md](docs/development.md)** - Coding conventions, testing guidelines, and contribution guide
+- **@README.md** - Module overview and quick start
+- **@docs/design.md** - Architecture, three-level pipeline, and design decisions
+- **@docs/development.md** - Coding conventions, testing guidelines, and contribution guide
 
 ## Quick Reference
 
@@ -37,7 +37,7 @@ type Transformer func(ctx context.Context, object unstructured.Unstructured) (un
 2. **Engine-level**: Filters/transformers applied to all renders via `engine.New()`
 3. **Render-time**: Filters/transformers applied to a single `Render()` call
 
-See [docs/design.md#5-three-level-filteringtransformation](docs/design.md#5-three-level-filteringtransformation) for details.
+See @docs/design.md (section 5: Three-Level Filtering/Transformation) for details.
 
 ### Engine Usage
 
@@ -123,11 +123,11 @@ go test -v ./pkg/... -run=^$ -bench=.
 ```
 
 For detailed development information:
-- **Build commands**: See [docs/development.md#setup-and-build](docs/development.md#setup-and-build)
-- **Coding conventions**: See [docs/development.md#coding-conventions](docs/development.md#coding-conventions)
-- **Testing guidelines**: See [docs/development.md#testing-guidelines](docs/development.md#testing-guidelines)
-- **Adding filters/transformers**: See [docs/development.md#extensibility](docs/development.md#extensibility)
-- **Code review guidelines**: See [docs/development.md#code-review-guidelines](docs/development.md#code-review-guidelines)
+- **Build commands**: See @docs/development.md (Setup and Build)
+- **Coding conventions**: See @docs/development.md (Coding Conventions)
+- **Testing guidelines**: See @docs/development.md (Testing Guidelines)
+- **Adding filters/transformers**: See @docs/development.md (Extensibility)
+- **Code review guidelines**: See @docs/development.md (Code Review Guidelines)
 
 ## Testing Conventions
 
@@ -136,7 +136,7 @@ For detailed development information:
 - Benchmark naming: `Benchmark<Component><TestName>`
 - Use `t.Context()` instead of `context.Background()`
 
-See [docs/development.md#testing-guidelines](docs/development.md#testing-guidelines) for complete testing practices.
+See @docs/development.md (Testing Guidelines) for complete testing practices.
 
 ## Key Concepts
 
@@ -184,7 +184,7 @@ The Engine is designed around these principles:
 7. **Immutability**: Transformers create new objects, never modify inputs
 8. **Error Context**: Rich error information for debugging
 
-See [docs/design.md#10-design-principles](docs/design.md#10-design-principles) for more details.
+See @docs/design.md (section 10: Design Principles) for more details.
 
 ## Dependencies
 
