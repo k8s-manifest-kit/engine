@@ -12,6 +12,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func TestAnnotationKeys(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(types.AnnotationSourceType).Should(Equal("manifests.k8s-manifests-kit/source.type"))
+	g.Expect(types.AnnotationSourcePath).Should(Equal("manifests.k8s-manifests-kit/source.path"))
+	g.Expect(types.AnnotationSourceFile).Should(Equal("manifests.k8s-manifests-kit/source.file"))
+	g.Expect(types.AnnotationContentHash).Should(Equal("manifests.k8s-manifests-kit/content.hash"))
+}
+
 func TestSetContentHash(t *testing.T) {
 	t.Run("computes and sets the annotation on the object", func(t *testing.T) {
 		g := NewWithT(t)
