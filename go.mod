@@ -5,7 +5,7 @@ go 1.25.11
 require (
 	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260604145543-c4a39bd14f36
 	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260219145423-4061a5fb8799
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/gomega v1.42.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.5
