@@ -3,7 +3,7 @@ module github.com/k8s-manifest-kit/engine
 go 1.26.5
 
 require (
-	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716101450-07246d3906c2
+	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716110029-cb840211b914
 	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260219145423-4061a5fb8799
 	github.com/onsi/gomega v1.42.1
 	github.com/stretchr/testify v1.11.1
