@@ -3,12 +3,12 @@ module github.com/k8s-manifest-kit/engine
 go 1.26.5
 
 require (
-	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716110029-cb840211b914
-	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260219145423-4061a5fb8799
+	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260805104432-8c3ee677c65a
+	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260707174420-9bb480701a57
 	github.com/onsi/gomega v1.42.1
 	github.com/stretchr/testify v1.11.1
-	k8s.io/api v0.36.2
-	k8s.io/apimachinery v0.36.2
+	k8s.io/api v0.36.3
+	k8s.io/apimachinery v0.36.3
 )
 
 require (
@@ -35,5 +35,5 @@ require (
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 )
