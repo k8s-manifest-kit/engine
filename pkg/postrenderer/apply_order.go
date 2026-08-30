@@ -1,3 +1,4 @@
+// Package postrenderer provides PostRenderer implementations.
 package postrenderer
 
 import (
@@ -10,8 +11,14 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 )
 
+// SortFunc is a function that sorts Kubernetes resources.
+type SortFunc func([]unstructured.Unstructured) []unstructured.Unstructured
+
 //nolint:gochecknoglobals
 var (
+	// orderSpacing is the multiplier used to create gaps between built-in resources for custom insertion.
+	orderSpacing = 10
+
 	orderFirst = []string{
 		"Namespace",
 		"ResourceQuota",
@@ -49,22 +56,25 @@ var (
 func init() {
 	kindOrder = make(map[string]int, len(orderFirst)+len(orderLast))
 
+	// Use orderSpacing to leave room for custom resource insertion
 	for i, kind := range orderFirst {
-		kindOrder[kind] = i - len(orderFirst)
+		kindOrder[kind] = (i - len(orderFirst)) * orderSpacing
 	}
 
 	for i, kind := range orderLast {
-		kindOrder[kind] = i + 1
+		kindOrder[kind] = (i + 1) * orderSpacing
 	}
 }
 
 // ApplyOrder returns a PostRenderer that sorts resources into dependency
-// order for cluster application. Cluster-wide foundational resources
-// (Namespace, CRD, ServiceAccount, etc.) come first; resources with many
-// dependencies (webhooks) come last. Resources not in either list are
-// placed in the middle, sorted by GVK string for stability.
-func ApplyOrder() types.PostRenderer {
+// order for cluster application. If sortFunc is provided, uses custom sorting;
+// otherwise uses built-in dependency ordering.
+func ApplyOrder(sortFunc SortFunc) types.PostRenderer {
 	return func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		if sortFunc != nil {
+			return sortFunc(objects), nil
+		}
+
 		sort.SliceStable(objects, func(i, j int) bool {
 			return compareOrder(objects[i], objects[j])
 		})
