@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260805104432-8c3ee677c65a
 	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260707174420-9bb480701a57
-	github.com/onsi/gomega v1.42.1
+	github.com/onsi/gomega v1.43.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.3
 	k8s.io/apimachinery v0.36.3
