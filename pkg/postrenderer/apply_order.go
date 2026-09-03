@@ -1,9 +1,10 @@
 package postrenderer
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -65,37 +66,35 @@ func init() {
 // placed in the middle, sorted by GVK string for stability.
 func ApplyOrder() types.PostRenderer {
 	return func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
-		sort.SliceStable(objects, func(i, j int) bool {
-			return compareOrder(objects[i], objects[j])
-		})
+		slices.SortStableFunc(objects, compareOrder)
 
 		return objects, nil
 	}
 }
 
-func compareOrder(a unstructured.Unstructured, b unstructured.Unstructured) bool {
+func compareOrder(a unstructured.Unstructured, b unstructured.Unstructured) int {
 	orderA := kindOrder[a.GetKind()]
 	orderB := kindOrder[b.GetKind()]
 
 	if orderA != orderB {
-		return orderA < orderB
+		return cmp.Compare(orderA, orderB)
 	}
 
 	gvkA := gvkString(a)
 	gvkB := gvkString(b)
 
 	if gvkA != gvkB {
-		return gvkA < gvkB
+		return cmp.Compare(gvkA, gvkB)
 	}
 
 	nsA := a.GetNamespace()
 	nsB := b.GetNamespace()
 
 	if nsA != nsB {
-		return nsA < nsB
+		return cmp.Compare(nsA, nsB)
 	}
 
-	return a.GetName() < b.GetName()
+	return cmp.Compare(a.GetName(), b.GetName())
 }
 
 func gvkString(obj unstructured.Unstructured) string {
