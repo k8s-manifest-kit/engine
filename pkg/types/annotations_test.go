@@ -19,6 +19,9 @@ func TestAnnotationKeys(t *testing.T) {
 	g.Expect(types.AnnotationSourcePath).Should(Equal("manifests.k8s-manifests-kit/source.path"))
 	g.Expect(types.AnnotationSourceFile).Should(Equal("manifests.k8s-manifests-kit/source.file"))
 	g.Expect(types.AnnotationContentHash).Should(Equal("manifests.k8s-manifests-kit/content.hash"))
+	g.Expect(types.AnnotationRenderOrigin).Should(Equal("manifests.k8s-manifests-kit/render.origin"))
+	g.Expect(types.RenderOriginLive).Should(Equal("live"))
+	g.Expect(types.RenderOriginCache).Should(Equal("cache"))
 }
 
 func TestSetContentHash(t *testing.T) {
@@ -86,5 +89,50 @@ func TestSetContentHash(t *testing.T) {
 
 		annotations := obj.GetAnnotations()
 		g.Expect(annotations).Should(HaveKey(types.AnnotationContentHash))
+	})
+}
+
+func TestSetRenderOrigin(t *testing.T) {
+	t.Run("sets the annotation on the object", func(t *testing.T) {
+		g := NewWithT(t)
+
+		obj := &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]any{
+					"name": "test",
+				},
+			},
+		}
+
+		types.SetRenderOrigin(obj, types.RenderOriginCache)
+
+		g.Expect(obj.GetAnnotations()).Should(HaveKeyWithValue(
+			types.AnnotationRenderOrigin,
+			types.RenderOriginCache,
+		))
+	})
+
+	t.Run("preserves existing annotations", func(t *testing.T) {
+		g := NewWithT(t)
+
+		obj := &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]any{
+					"name": "test",
+					"annotations": map[string]any{
+						"existing": "annotation",
+					},
+				},
+			},
+		}
+
+		types.SetRenderOrigin(obj, types.RenderOriginLive)
+
+		g.Expect(obj.GetAnnotations()).Should(HaveKeyWithValue("existing", "annotation"))
+		g.Expect(obj.GetAnnotations()).Should(HaveKey(types.AnnotationRenderOrigin))
 	})
 }

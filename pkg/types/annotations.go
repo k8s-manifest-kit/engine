@@ -16,10 +16,24 @@ const (
 
 	// AnnotationContentHash is the annotation key for the SHA-256 content hash of the rendered resource.
 	AnnotationContentHash = "manifests.k8s-manifests-kit/content.hash"
+
+	// AnnotationRenderOrigin is the annotation key for the origin of a rendered resource.
+	AnnotationRenderOrigin = "manifests.k8s-manifests-kit/render.origin"
+
+	// RenderOriginLive indicates that the source renderer executed for the current render.
+	RenderOriginLive = "live"
+
+	// RenderOriginCache indicates that the source result was returned from the render cache.
+	RenderOriginCache = "cache"
 )
 
 // SetContentHash computes a deterministic content hash for the given object
 // and stores it as the AnnotationContentHash annotation.
 func SetContentHash(obj k8s.Object) {
 	k8s.SetAnnotation(obj, AnnotationContentHash, k8s.ContentHash(obj))
+}
+
+// SetRenderOrigin stores the origin of a rendered resource as an annotation.
+func SetRenderOrigin(obj k8s.Object, origin string) {
+	k8s.SetAnnotation(obj, AnnotationRenderOrigin, origin)
 }
