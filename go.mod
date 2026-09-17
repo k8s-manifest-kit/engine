@@ -7,8 +7,8 @@ require (
 	github.com/lburgazzoli/gomega-matchers v0.6.1-0.20260902111206-6faf9a4a8c08
 	github.com/onsi/gomega v1.43.0
 	github.com/stretchr/testify v1.12.1
-	k8s.io/api v0.36.4
-	k8s.io/apimachinery v0.36.4
+	k8s.io/api v0.37.0
+	k8s.io/apimachinery v0.37.0
 )
 
 require (
