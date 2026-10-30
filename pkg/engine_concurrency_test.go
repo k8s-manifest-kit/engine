@@ -1,0 +1,268 @@
+package engine_test
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"testing"
+
+	"github.com/k8s-manifest-kit/pkg/util/k8s"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	engine "github.com/k8s-manifest-kit/engine/pkg"
+	"github.com/k8s-manifest-kit/engine/pkg/render"
+	"github.com/k8s-manifest-kit/engine/pkg/types"
+
+	. "github.com/onsi/gomega"
+)
+
+// concurrentRequests is the number of overlapping Render calls issued against
+// one shared engine during the concurrent phase.
+const concurrentRequests = 8
+
+// TestRenderConcurrentRequests verifies that overlapping Render calls on a
+// single engine keep render-time values, hooks, and outputs isolated per
+// request under the race detector.
+func TestRenderConcurrentRequests(t *testing.T) {
+	g := NewWithT(t)
+
+	alpha := newRecordingRenderer("alpha", true)
+	beta := newRecordingRenderer("beta", false)
+
+	e, err := engine.New(
+		engine.WithRenderer(alpha),
+		engine.WithRenderer(beta),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Successful cold initialization before concurrent use.
+	coldObjects, err := e.Render(t.Context())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(objectNames(coldObjects)).To(ConsistOf("pod-alpha", "pod-beta"))
+
+	// Warm concurrent phase: every worker renders with its own values and
+	// additive render-time hooks once the start barrier opens.
+	ctx := t.Context()
+
+	start := make(chan struct{})
+	var done sync.WaitGroup
+
+	inputs := make([]types.Values, concurrentRequests)
+	results := make([][]unstructured.Unstructured, concurrentRequests)
+	renderErrs := make([]error, concurrentRequests)
+
+	for id := range concurrentRequests {
+		done.Add(1)
+
+		go func() {
+			defer done.Done()
+			<-start
+
+			values := requestValues(id)
+			inputs[id] = values
+
+			objects, err := e.Render(ctx,
+				render.WithValues(values),
+				render.WithTransformer(addLabels(map[string]string{"request": requestLabel(id)})),
+				render.WithPostRenderer(tagObjects(requestLabel(id))),
+			)
+
+			results[id] = objects
+			renderErrs[id] = err
+		}()
+	}
+
+	close(start)
+	done.Wait()
+
+	for id := range concurrentRequests {
+		expectRequestResult(g, id, results[id], renderErrs[id], inputs[id], alpha, beta)
+	}
+
+	// Outputs are independently created per render: mutating one request's
+	// result affects neither another request's result...
+	k8s.SetLabel(&results[0][0], "mutated", "true")
+	g.Expect(results[1][0].GetLabels()).ToNot(HaveKey("mutated"))
+
+	// ...nor a later ordinary render, which also sees no concurrent hooks.
+	finalObjects, err := e.Render(t.Context())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(objectNames(finalObjects)).To(ConsistOf("pod-alpha", "pod-beta"))
+
+	for _, object := range finalObjects {
+		g.Expect(object.GetLabels()).To(BeEmpty())
+		g.Expect(object.GetAnnotations()).To(BeEmpty())
+	}
+
+	// The ordinary render received empty values: no concurrent request's
+	// values leaked into it.
+	g.Expect(alpha.received[concurrentRequests]).To(BeEmpty())
+	g.Expect(beta.received[concurrentRequests]).To(BeEmpty())
+}
+
+// expectRequestResult asserts that one concurrent request returned exactly
+// its own objects, hook results, and values, untouched by any other request
+// or renderer.
+func expectRequestResult(
+	g *WithT,
+	id int,
+	objects []unstructured.Unstructured,
+	renderErr error,
+	input types.Values,
+	alpha *recordingRenderer,
+	beta *recordingRenderer,
+) {
+	label := requestLabel(id)
+
+	g.Expect(renderErr).ToNot(HaveOccurred())
+	g.Expect(objects).To(HaveLen(2))
+	g.Expect(objectNames(objects)).To(ConsistOf(
+		fmt.Sprintf("pod-request-%d-alpha", id),
+		fmt.Sprintf("pod-request-%d-beta", id),
+	))
+
+	for _, object := range objects {
+		g.Expect(object.GetLabels()).To(Equal(map[string]string{"request": label}))
+		g.Expect(object.GetAnnotations()).To(Equal(map[string]string{"request": label}))
+	}
+
+	// Both renderers received exactly this request's values. alpha mutated
+	// its own nested copy; beta's copy and the caller's input stayed pristine.
+	g.Expect(alpha.received[id]).To(Equal(mutatedRequestValues(id, alpha.name)))
+	g.Expect(beta.received[id]).To(Equal(requestValues(id)))
+	g.Expect(input).To(Equal(requestValues(id)))
+}
+
+// recordingRenderer is a concurrency-safe types.Renderer for concurrency
+// tests. It records the values received per request slot, mutates its own
+// nested copy of them when enabled, and returns freshly created objects
+// derived from the request.
+type recordingRenderer struct {
+	name string
+	// received stores the values of the last Process call per request id.
+	// The final slot is reserved for ordinary renders that pass no values.
+	// Concurrent callers only ever write to their own slot, so no locking
+	// is needed.
+	received []types.Values
+	// mutateNested controls whether Process mutates the nested request map
+	// of the values it receives.
+	mutateNested bool
+}
+
+// newRecordingRenderer creates a renderer recording up to concurrentRequests
+// distinct requests plus one ordinary render, mutating its received values
+// when mutateNested is set.
+func newRecordingRenderer(name string, mutateNested bool) *recordingRenderer {
+	return &recordingRenderer{
+		name:         name,
+		received:     make([]types.Values, concurrentRequests+1),
+		mutateNested: mutateNested,
+	}
+}
+
+// Name implements types.Renderer.
+func (r *recordingRenderer) Name() string {
+	return r.name
+}
+
+// Process implements types.Renderer. It records the received values, mutates
+// its own nested copy when enabled, and returns fresh objects per call.
+func (r *recordingRenderer) Process(_ context.Context, values types.Values) ([]unstructured.Unstructured, error) {
+	request, hasRequest := values["request"].(map[string]any)
+
+	r.received[requestSlot(values)] = values
+
+	if r.mutateNested && hasRequest {
+		request["mutated-by"] = r.name
+	}
+
+	return []unstructured.Unstructured{makePod(r.objectName(values))}, nil
+}
+
+// objectName returns the name of the object this renderer creates for the
+// given values: request renders embed the request id, ordinary renders do not.
+func (r *recordingRenderer) objectName(values types.Values) string {
+	id, ok := requestID(values)
+	if !ok {
+		return "pod-" + r.name
+	}
+
+	return fmt.Sprintf("pod-request-%d-%s", id, r.name)
+}
+
+// requestSlot returns the recording slot for a Process call: the request id
+// for request renders, or the reserved final slot for ordinary renders that
+// pass no values.
+func requestSlot(values types.Values) int {
+	id, ok := requestID(values)
+	if !ok {
+		return concurrentRequests
+	}
+
+	return id
+}
+
+// requestID returns the numeric id carried by a request's values.
+func requestID(values types.Values) (int, bool) {
+	request, ok := values["request"].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+
+	id, ok := request["id"].(int)
+
+	return id, ok
+}
+
+// requestValues returns the render-time values for the request with the given
+// id. Each call returns a fresh, deeply independent map.
+func requestValues(id int) types.Values {
+	return types.Values{
+		"request": map[string]any{
+			"id":   id,
+			"name": requestLabel(id),
+			"labels": map[string]any{
+				"tier": "web",
+			},
+		},
+	}
+}
+
+// mutatedRequestValues returns the values a renderer is expected to record
+// after mutating its own nested copy of the request values.
+func mutatedRequestValues(id int, rendererName string) types.Values {
+	values := requestValues(id)
+	values["request"].(map[string]any)["mutated-by"] = rendererName
+
+	return values
+}
+
+// requestLabel returns the unique label identifying the request with the
+// given id.
+func requestLabel(id int) string {
+	return fmt.Sprintf("request-%d", id)
+}
+
+// tagObjects returns a render-time post-renderer that annotates every object
+// with the request label.
+func tagObjects(label string) types.PostRenderer {
+	return func(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		for i := range objects {
+			k8s.SetAnnotation(&objects[i], "request", label)
+		}
+
+		return objects, nil
+	}
+}
+
+// objectNames returns the names of the given objects.
+func objectNames(objects []unstructured.Unstructured) []string {
+	names := make([]string, 0, len(objects))
+
+	for _, object := range objects {
+		names = append(names, object.GetName())
+	}
+
+	return names
+}

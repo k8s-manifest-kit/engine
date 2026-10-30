@@ -10,6 +10,7 @@ Run commands from this repository directory:
 
 ```bash
 make test
+make test/race
 make fmt
 make lint
 make lint/fix
@@ -37,5 +38,10 @@ Tests use the standard Go test runner and Gomega where appropriate. Cover
 option ordering, context cancellation, error wrapping, empty renderer sets,
 and the order of filters, transformers, and post-renderers when changing the
 pipeline.
+
+`make test/race` re-runs the unit suite under the race detector. The
+concurrency tests render overlapping requests against a single engine, so
+run it whenever changing value cloning, render-time option merging, or
+output aggregation.
 
 See [`design.md`](design.md) and [`../AGENTS.md`](../AGENTS.md).
