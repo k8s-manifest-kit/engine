@@ -56,6 +56,8 @@ func New(opts ...Option) (*Engine, error) {
 //
 // Render-time options are additive - they append to engine-level options.
 // Render-time values are passed to all renderers and deep merged with Source-level values.
+// Values containing a reference cycle among nested maps or slices are
+// rejected with ErrCyclicValues before any renderer runs.
 func (e *Engine) Render(ctx context.Context, opts ...render.Option) ([]unstructured.Unstructured, error) {
 	startTime := time.Now()
 
@@ -67,7 +69,22 @@ func (e *Engine) Render(ctx context.Context, opts ...render.Option) ([]unstructu
 	}
 
 	for _, opt := range opts {
+		// Struct-based render.Options deep-clones its values while being
+		// applied, so its values are checked before that clone runs. Values
+		// arriving through functional options are checked below, before the
+		// engine clones them per renderer.
+		if err := validateRenderValues(renderOptionValues(opt)); err != nil {
+			return nil, err
+		}
+
 		opt.ApplyTo(&renderOpts)
+	}
+
+	// Cyclic values cannot be deep-cloned: the shared clone helper recurses
+	// without cycle detection, so they are rejected here, before any
+	// renderer runs, instead of crashing the process with a stack overflow.
+	if err := validateRenderValues(renderOpts.Values); err != nil {
+		return nil, err
 	}
 
 	allObjects := make([]unstructured.Unstructured, 0)

@@ -44,6 +44,10 @@ Errors retain the failing renderer or pipeline stage where possible and are
 wrapped with context. Context cancellation is propagated to renderer loading,
 value resolution, and hook execution.
 
+Render-time values containing a reference cycle among nested maps or slices
+are rejected with `ErrCyclicValues` before any renderer runs, instead of
+crashing inside the values deep clone.
+
 ## Related documentation
 
 - [`../AGENTS.md`](../AGENTS.md) — repository-specific development rules.
