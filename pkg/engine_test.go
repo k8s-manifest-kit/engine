@@ -623,7 +623,7 @@ type mockRenderer struct {
 
 func (m *mockRenderer) Process(ctx context.Context, values types.Values) ([]unstructured.Unstructured, error) {
 	args := m.Called(ctx, values)
-	//nolint:wrapcheck
+	//nolint:wrapcheck // mock returns the results configured by the caller, including its error, unchanged
 	return args.Get(0).([]unstructured.Unstructured), args.Error(1)
 }
 

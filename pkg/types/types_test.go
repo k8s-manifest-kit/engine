@@ -264,7 +264,7 @@ func TestBuildPostRendererChain(t *testing.T) {
 
 	t.Run("should execute in order: filters then transformers then post-renderers", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Each stage writes a marker annotation so we can verify order
 		filterFunc := func(_ context.Context, obj unstructured.Unstructured) (bool, error) {

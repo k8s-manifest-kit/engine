@@ -11,7 +11,7 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 )
 
-//nolint:gochecknoglobals
+//nolint:gochecknoglobals // static apply-order tables shared by all ApplyOrder calls
 var (
 	orderFirst = []string{
 		"Namespace",
@@ -46,7 +46,7 @@ var (
 	kindOrder map[string]int
 )
 
-//nolint:gochecknoinits
+//nolint:gochecknoinits // builds the kind lookup map once from the static ordering tables
 func init() {
 	kindOrder = make(map[string]int, len(orderFirst)+len(orderLast))
 
