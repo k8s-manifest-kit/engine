@@ -178,3 +178,111 @@ func TestRenderRejectsCyclicValues(t *testing.T) {
 		g.Expect(captured).To(Equal(values))
 	})
 }
+
+func TestRenderTimeValues(t *testing.T) {
+
+	t.Run("should pass render-time values to renderer", func(t *testing.T) {
+		g := NewWithT(t)
+		var capturedValues types.Values
+		renderer := new(mockRenderer)
+		renderer.On("Name").Return("mock")
+		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			capturedValues = args.Get(1).(types.Values)
+		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		renderValues := types.Values{
+			"replicaCount": 3,
+			"image": map[string]any{
+				"tag": "v2.0",
+			},
+		}
+
+		objects, err := e.Render(t.Context(), render.WithValues(renderValues))
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(objects).Should(HaveLen(1))
+		g.Expect(capturedValues).Should(Equal(renderValues))
+	})
+
+	t.Run("should pass empty map when no values provided", func(t *testing.T) {
+		g := NewWithT(t)
+		var capturedValues types.Values
+		renderer := new(mockRenderer)
+		renderer.On("Name").Return("mock")
+		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			capturedValues = args.Get(1).(types.Values)
+		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		objects, err := e.Render(t.Context())
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(objects).Should(HaveLen(1))
+		g.Expect(capturedValues).Should(BeEmpty())
+	})
+
+	t.Run("should pass same values to multiple renderers", func(t *testing.T) {
+		g := NewWithT(t)
+		var capturedValues1, capturedValues2 types.Values
+
+		renderer1 := new(mockRenderer)
+		renderer1.On("Name").Return("renderer1")
+		renderer1.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			capturedValues1 = args.Get(1).(types.Values)
+		}).Return([]unstructured.Unstructured{makePod("pod1")}, nil)
+
+		renderer2 := new(mockRenderer)
+		renderer2.On("Name").Return("renderer2")
+		renderer2.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			capturedValues2 = args.Get(1).(types.Values)
+		}).Return([]unstructured.Unstructured{makePod("pod2")}, nil)
+
+		e, err := engine.New(
+			engine.WithRenderer(renderer1),
+			engine.WithRenderer(renderer2),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		renderValues := types.Values{
+			"env": "production",
+		}
+
+		objects, err := e.Render(t.Context(), render.WithValues(renderValues))
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(objects).Should(HaveLen(2))
+		g.Expect(capturedValues1).Should(Equal(renderValues))
+		g.Expect(capturedValues2).Should(Equal(renderValues))
+	})
+
+	t.Run("should work with struct-based render.Options", func(t *testing.T) {
+		g := NewWithT(t)
+		var capturedValues types.Values
+		renderer := new(mockRenderer)
+		renderer.On("Name").Return("mock")
+		renderer.On("Process", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			capturedValues = args.Get(1).(types.Values)
+		}).Return([]unstructured.Unstructured{makePod("test-pod")}, nil)
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		renderValues := types.Values{
+			"key": "value",
+		}
+
+		objects, err := e.Render(t.Context(), render.Options{
+			Values: renderValues,
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(objects).Should(HaveLen(1))
+		g.Expect(capturedValues).Should(Equal(renderValues))
+	})
+
+}

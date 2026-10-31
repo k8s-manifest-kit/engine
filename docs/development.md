@@ -44,9 +44,10 @@ renderer-specific copies of common contracts.
   not to erase similar-looking renderer code.
 - Give each function parameter its own type: `name string, namespace string`,
   not `name, namespace string`.
-- Put shared implementation helpers in `_support.go` and test-only support in
-  `_support_test.go`; keep cohesive feature files intact rather than
-  mechanically extracting every small helper.
+- Put shared implementation helpers in `_support.go`. In test packages, place
+  shared helpers and fixtures in `<component>_support_test.go`; small
+  test-local helpers and scenario assertions stay beside their tests rather
+  than being mechanically extracted (see [Test layout](#test-layout)).
 - Follow the formatter and import grouping configured in `.golangci.yml`.
   Tests live in external test packages (for example `package engine_test`)
   and exercise the public API.
@@ -85,11 +86,37 @@ ordering, context cancellation, error wrapping, empty renderer sets, and the
 order of filters, transformers, and post-renderers when changing the
 pipeline.
 
+### Test layout
+
+- Colocate tests with implementation. A `test/` subdirectory is a separate
+  Go package, not a cosmetic folder; use existing package boundaries.
+- Organize larger suites by concern using `<component>_<concern>_test.go`;
+  retain a cohesive `<component>_test.go` for core API behavior. Use
+  `_metadata_test.go`, `_cache_test.go`, `_values_test.go`, and
+  `_concurrency_test.go` where relevant, not as mandatory files for every
+  package.
+- Place benchmarks in `<component>_benchmark_test.go`, in the same package
+  directory, retaining benchmark names and setup/timing behavior.
+- Put shared helpers in `<component>_support_test.go` and substantial
+  feature-specific fixture machinery in
+  `<component>_<concern>_support_test.go`. Small test-local helpers and
+  scenario assertions can remain beside their tests.
+- Support files contain helper/fixture/type declarations, not test,
+  benchmark, fuzz, or example entry points. `_support_test.go` is a naming
+  convention; only `_test.go` has Go's test-file significance.
+- Keep tests discoverable without excessive fragmentation: no hard line
+  limit, mandatory one-file-per-test rule, shared cross-repository harness,
+  fixture-storage migration, or automatic test-speed claim.
+- Preserve build tags where tests use them; filenames alone do not exclude
+  a test from the default suite, and this repository has no live
+  integration targets.
+
 For behavior fixes, add a regression test that fails without the fix and
 asserts on fields and identities rather than only error counts. Existing
 anchors include `TestRenderRejectsCyclicValues` in
-`pkg/engine_values_test.go`, `TestRenderTimeValues` in `pkg/engine_test.go`,
-and `TestRenderConcurrentRequests` in `pkg/engine_concurrency_test.go`.
+`pkg/engine_values_test.go`, `TestRenderTimeValues` in
+`pkg/engine_values_test.go`, and `TestRenderConcurrentRequests` in
+`pkg/engine_concurrency_test.go`.
 
 Concurrent shared-instance tests start workers behind a barrier, join all
 workers, and assert from the test goroutine. Give each worker independently
