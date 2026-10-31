@@ -33,6 +33,12 @@ the test targets and does not verify formatting.
 - `types/` — renderer, values, hook, and annotation contracts.
 - `filter/`, `transformer/`, and `postrenderer/` — built-in hook utilities.
 
+Engine and render options are typed by the shared
+`github.com/k8s-manifest-kit/pkg/util/option` package (`option.Option[T]`,
+`option.FunctionalOption[T]`). The layout follows the shared
+[`project-layout.md`](../../docs/project-layout.md) convention (workspace
+navigation).
+
 Keep public behavior changes synchronized with the renderer modules and the
 examples module. Prefer the shared types and pipeline helpers over introducing
 renderer-specific copies of common contracts.

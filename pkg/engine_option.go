@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/k8s-manifest-kit/pkg/util"
+	"github.com/k8s-manifest-kit/pkg/util/option"
 
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 )
@@ -30,12 +30,12 @@ func (opts Options) ApplyTo(target *Options) {
 }
 
 // Option is a generic option for Options.
-type Option = util.Option[Options]
+type Option = option.Option[Options]
 
 // WithRenderer adds a configured renderer to the engine.
 // Can only be used during engine creation.
 func WithRenderer(r types.Renderer) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Renderers = append(o.Renderers, r)
 	})
 }
@@ -45,7 +45,7 @@ func WithRenderer(r types.Renderer) Option {
 // For renderer-specific filtering, use the renderer's WithFilter option (e.g., helm.WithFilter).
 // For one-time filtering on a single Render() call, use render.WithFilter.
 func WithFilter(f types.Filter) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Filters = append(o.Filters, f)
 	})
 }
@@ -55,7 +55,7 @@ func WithFilter(f types.Filter) Option {
 // For renderer-specific transformation, use the renderer's WithTransformer option (e.g., helm.WithTransformer).
 // For one-time transformation on a single Render() call, use render.WithTransformer.
 func WithTransformer(t types.Transformer) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Transformers = append(o.Transformers, t)
 	})
 }
@@ -65,7 +65,7 @@ func WithTransformer(t types.Transformer) Option {
 // For renderer-specific post-rendering, use the renderer's WithPostRenderer option.
 // For one-time post-rendering on a single Render() call, use render.WithPostRenderer.
 func WithPostRenderer(p types.PostRenderer) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.PostRenderers = append(o.PostRenderers, p)
 	})
 }

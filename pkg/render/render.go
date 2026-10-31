@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/k8s-manifest-kit/pkg/util"
+	"github.com/k8s-manifest-kit/pkg/util/option"
 
 	"github.com/k8s-manifest-kit/engine/pkg/types"
 )
@@ -37,13 +37,13 @@ func (opts Options) ApplyTo(target *Options) {
 }
 
 // Option is a generic option for render-time configuration.
-type Option = util.Option[Options]
+type Option = option.Option[Options]
 
 // WithValues sets render-time values for a single Render() call.
 // These values are passed to all renderers and deep merged with Source-level values,
 // with render-time values taking precedence for conflicting keys.
 func WithValues(values types.Values) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Values = values
 	})
 }
@@ -51,7 +51,7 @@ func WithValues(values types.Values) Option {
 // WithFilter adds a render-time filter function for a single Render() call.
 // Render-time filters are merged with (appended to) engine-level filters.
 func WithFilter(f types.Filter) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Filters = append(o.Filters, f)
 	})
 }
@@ -59,7 +59,7 @@ func WithFilter(f types.Filter) Option {
 // WithTransformer adds a render-time transformer function for a single Render() call.
 // Render-time transformers are merged with (appended to) engine-level transformers.
 func WithTransformer(t types.Transformer) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.Transformers = append(o.Transformers, t)
 	})
 }
@@ -67,7 +67,7 @@ func WithTransformer(t types.Transformer) Option {
 // WithPostRenderer adds a render-time post-renderer for a single Render() call.
 // Render-time post-renderers are merged with (appended to) engine-level post-renderers.
 func WithPostRenderer(p types.PostRenderer) Option {
-	return util.FunctionalOption[Options](func(o *Options) {
+	return option.FunctionalOption[Options](func(o *Options) {
 		o.PostRenderers = append(o.PostRenderers, p)
 	})
 }
