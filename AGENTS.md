@@ -45,11 +45,12 @@ Run commands from this directory:
 
 ```bash
 make test
+make test/race
 make fmt
 make lint
 make lint/fix
 make check
 ```
 
-Use `t.Context()` in tests, Gomega for assertions, and preserve error chains with `%w`. Add or update tests and the relevant documentation when changing pipeline behavior.
+`make check` runs lint and vulncheck; tests and formatting are separate targets. Use `t.Context()` in tests, Gomega for assertions, and preserve error chains with `%w`. Add or update tests and the relevant documentation when changing pipeline behavior. See [Development](docs/development.md) for the full conventions.
 
