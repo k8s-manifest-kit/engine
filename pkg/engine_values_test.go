@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	utilmaps "github.com/k8s-manifest-kit/pkg/util/maps"
 	"github.com/stretchr/testify/mock"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,6 +45,7 @@ func TestRenderRejectsCyclicValues(t *testing.T) {
 
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(errors.Is(err, engine.ErrCyclicValues)).To(BeTrue())
+		g.Expect(errors.Is(err, utilmaps.ErrCycle)).To(BeTrue())
 		g.Expect(err.Error()).To(ContainSubstring(`"cyclic.self" refers back to "cyclic"`))
 		g.Expect(objects).To(BeNil())
 	})
@@ -66,6 +68,7 @@ func TestRenderRejectsCyclicValues(t *testing.T) {
 
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(errors.Is(err, engine.ErrCyclicValues)).To(BeTrue())
+		g.Expect(errors.Is(err, utilmaps.ErrCycle)).To(BeTrue())
 		g.Expect(err.Error()).To(ContainSubstring(`"cyclic[0]" refers back to "cyclic"`))
 		g.Expect(objects).To(BeNil())
 	})
@@ -90,6 +93,33 @@ func TestRenderRejectsCyclicValues(t *testing.T) {
 
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(errors.Is(err, engine.ErrCyclicValues)).To(BeTrue())
+		g.Expect(errors.Is(err, utilmaps.ErrCycle)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring(`"cyclic.self" refers back to "cyclic"`))
+		g.Expect(objects).To(BeNil())
+	})
+
+	t.Run("should reject cyclic values passed as pointer-based render options", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cyclic := map[string]any{}
+		cyclic["self"] = cyclic
+
+		// Pointer-based render options take the same apply path as the
+		// struct form and deep-clone their values while being applied, so
+		// the cycle must be rejected before that clone runs too.
+		renderer := new(mockRenderer)
+		renderer.On("Name").Return("mock")
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		objects, err := e.Render(t.Context(), &render.Options{
+			Values: types.Values{"cyclic": cyclic},
+		})
+
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(errors.Is(err, engine.ErrCyclicValues)).To(BeTrue())
+		g.Expect(errors.Is(err, utilmaps.ErrCycle)).To(BeTrue())
 		g.Expect(err.Error()).To(ContainSubstring(`"cyclic.self" refers back to "cyclic"`))
 		g.Expect(objects).To(BeNil())
 	})
@@ -116,6 +146,7 @@ func TestRenderRejectsCyclicValues(t *testing.T) {
 
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(errors.Is(err, engine.ErrCyclicValues)).To(BeTrue())
+		g.Expect(errors.Is(err, utilmaps.ErrCycle)).To(BeTrue())
 		g.Expect(err.Error()).To(ContainSubstring(`"items[0].nested.self" refers back to "items[0].nested"`))
 		g.Expect(objects).To(BeNil())
 	})

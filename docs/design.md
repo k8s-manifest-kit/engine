@@ -55,16 +55,18 @@ renderer's copy, the caller's input, or later renders. `render.WithValues`
 does not clone; the values map is only copied at the per-renderer clone, so
 callers must not mutate it while a render using it is in flight.
 
-Cycle validation follows exactly the reachability of the deep clone —
-nested `map[string]any` and `[]any` — and treats every other type as a leaf.
-Shared references that do not form a cycle, such as the same nested map
-appearing under two keys, remain valid. A cycle on that traversal is
-rejected with `ErrCyclicValues` and a key path before any renderer runs,
-instead of exhausting the goroutine stack inside the clone. This is a cycle
-check for the built-in option paths, not general graph validation, and it
-places no restrictions on value types. Custom `render.Option`
-implementations that clone values inside their own `ApplyTo` are outside
-these guarantees.
+Cycle validation is delegated to the shared `maps.ValidateAcyclic` helper
+from `k8s-manifest-kit/pkg`, which follows exactly the reachability of the
+deep clone — nested `map[string]any` and `[]any` — and treats every other
+type as a leaf. Shared references that do not form a cycle, such as the same
+nested map appearing under two keys, remain valid. A cycle on that traversal
+is rejected before any renderer runs, instead of exhausting the goroutine
+stack inside the clone, with an error matching both `engine.ErrCyclicValues`
+and the shared `maps.ErrCycle` through `errors.Is`, carrying a deterministic
+key path. This is a cycle check for the built-in option paths, not general
+graph validation, and it places no restrictions on value types. Custom
+`render.Option` implementations that clone values inside their own `ApplyTo`
+are outside these guarantees.
 
 `types.Values.DeepClone` copies JSON-like trees. Non-JSON types such as
 pointers and structs with pointer fields are shallow-copied, so isolation
@@ -114,7 +116,9 @@ renders are in flight.
 Errors retain the failing renderer or pipeline stage where possible and are
 wrapped with context. Context cancellation is propagated to renderer loading,
 value resolution, and hook execution. Cyclic render-time values are rejected
-with `ErrCyclicValues` as described in [Render-time values](#render-time-values).
+before any renderer runs with an error matching both `engine.ErrCyclicValues`
+and the shared `maps.ErrCycle` through `errors.Is`, as described in
+[Render-time values](#render-time-values).
 
 ## Related documentation
 
