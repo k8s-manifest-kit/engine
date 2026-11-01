@@ -52,5 +52,5 @@ make lint/fix
 make check
 ```
 
-`make check` runs lint and vulncheck; tests and formatting are separate targets. Use `t.Context()` in tests, Gomega for assertions, and preserve error chains with `%w`. Add or update tests and the relevant documentation when changing pipeline behavior. See [Development](docs/development.md) for the full conventions.
+`make check` runs lint and vulncheck; tests and formatting are separate targets. Use `t.Context()` in tests, Gomega for assertions, and preserve error chains with `%w`. Add or update tests and the relevant documentation when changing pipeline behavior. Keep tests focused and simple: use the simplest test that proves the contract, and add helpers or extra test files only when a concrete behavior or regression requires them. See [Development](docs/development.md) for the full conventions.
 

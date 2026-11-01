@@ -92,6 +92,24 @@ ordering, context cancellation, error wrapping, empty renderer sets, and the
 order of filters, transformers, and post-renderers when changing the
 pipeline.
 
+### Test simplicity
+
+Use the simplest test that proves the contract under test. Don't re-test
+standard-library internals, and don't add helpers, mocks, instrumentation,
+subprocesses, or extra test files unless a concrete behavior or regression
+requires them. Keep small suites cohesive in one test file; the
+[concern-suffixed layout](#test-layout) below describes where a justified
+split goes, not a requirement to create those files.
+
+Keep test complexity proportional to the code and its risk: start with a
+small fixture and focused assertions on observable pipeline behavior —
+ordering, cancellation, error wrapping, value rejection and merging — and
+reuse existing fixtures or standard test utilities before building a bespoke
+harness. The regression, ownership, and concurrency duties below still apply,
+including shared-instance rendering under overlapping calls; the barrier and
+join harness is justified there because thread safety is part of the
+contract.
+
 ### Test layout
 
 - Colocate tests with implementation. A `test/` subdirectory is a separate
