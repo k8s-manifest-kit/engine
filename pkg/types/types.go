@@ -72,7 +72,18 @@ type Renderer interface {
 }
 
 // ValidateRenderer checks if a Renderer implementation is valid.
-// Returns an error if the renderer is nil or if Name() returns an empty string.
+// It rejects a nil interface value and a renderer whose Name returns an
+// empty or whitespace-only string, invoking Name once to do so.
+//
+// It does not generally detect typed-nil receivers: a non-nil interface
+// holding a nil pointer passes validation, and whether that renderer works
+// depends on its own methods. Renderer implementations that support
+// nil receivers — including the built-in Helm, GoTemplate, YAML, mem, and
+// Kustomize renderers, which return ErrRendererNil from a nil Process
+// receiver — are legal, and validation does not reject them early. This
+// rollout does not cover the OLM renderer. Validation also guarantees
+// nothing about method panics: constructor errors should be surfaced before
+// registration by handling them where the renderer is built.
 func ValidateRenderer(r Renderer) error {
 	if r == nil {
 		return ErrRendererNil

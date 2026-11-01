@@ -23,6 +23,19 @@ type PostRenderer func(
 ) ([]unstructured.Unstructured, error)
 ```
 
+Renderer registration is validated by `types.ValidateRenderer`: it rejects a
+nil interface value and a renderer whose `Name` returns an empty or
+whitespace-only string, invoking `Name` once to do so. It does not generally
+detect typed-nil receivers — a non-nil interface holding a nil pointer
+passes validation, and whether such a renderer works depends on its own
+methods. Renderer implementations with nil-safe methods remain legal:
+the built-in Helm, GoTemplate, YAML, mem, and Kustomize renderers return
+`types.ErrRendererNil` from a nil `Process` receiver rather than being
+rejected by early engine validation, and custom implementations may do the
+same. The OLM renderer is not covered by this rollout. Validation
+guarantees nothing about panics in user methods; surface constructor errors
+before registration by handling them where the renderer is built.
+
 ## Pipeline
 
 Each renderer performs its renderer-specific work, applies source selectors,
@@ -109,6 +122,16 @@ phase order and is not idempotent; origin-only calls never rehash.
 Package-provided options snapshot their input and are reusable across calls
 and goroutines. Renderers keep their own cloning, provenance discovery, and
 cache lifecycle and call the helper at their existing annotation points.
+
+Hash-stage semantics: the content hash is deterministic for an unchanged
+object, but it includes the complete object at invocation — including any
+prior hash, origin, or source annotations already present — so setting a
+hash mutates the object and re-hashing an already hashed object produces a
+different value. Renderers hash their output before later hooks run:
+filters, transformers, and post-renderers execute after rendering, on
+already annotated objects, so their changes are outside the recorded hash.
+Origin-only calls never rehash. The full batch-phase ordering contract is
+documented on `types.AnnotateObjects`.
 
 ## Concurrency
 

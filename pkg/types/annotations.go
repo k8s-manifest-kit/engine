@@ -29,8 +29,16 @@ const (
 	RenderOriginCache = "cache"
 )
 
-// SetContentHash computes a deterministic content hash for the given object
-// and stores it as the AnnotationContentHash annotation.
+// SetContentHash computes a content hash for the given object and stores it
+// as the AnnotationContentHash annotation.
+//
+// The hash is deterministic for an unchanged object, but it covers the
+// complete object as it stands at invocation — including any prior hash,
+// origin, or source annotations already present. Setting a hash therefore
+// mutates the object and is not idempotent: calling it again includes the
+// previous hash annotation in the hashed content and produces a different
+// value. Origin-only annotation calls never rehash. The full batch-phase
+// ordering contract is documented on AnnotateObjects.
 func SetContentHash(obj k8s.Object) {
 	k8s.SetAnnotation(obj, AnnotationContentHash, k8s.ContentHash(obj))
 }

@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -89,4 +90,35 @@ func TestNewValidatesRenderers(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(e).ShouldNot(BeNil())
 	})
+
+	t.Run("should accept a typed-nil renderer with nil-safe methods", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Validation rejects only a nil interface and a blank name: a
+		// non-nil interface holding a nil pointer passes, and a custom
+		// renderer with nil-safe methods stays legal through Render.
+		var renderer *nilSafeRenderer
+
+		e, err := engine.New(engine.WithRenderer(renderer))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(e).ShouldNot(BeNil())
+
+		objects, err := e.Render(t.Context())
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(objectNames(objects)).To(ConsistOf("nil-safe-pod"))
+	})
+}
+
+// nilSafeRenderer is a custom renderer whose methods tolerate a nil
+// receiver, proving that typed-nil registrations remain valid: engine
+// validation does not reject them, and rendering dispatches to the
+// nil-safe methods.
+type nilSafeRenderer struct{}
+
+func (r *nilSafeRenderer) Name() string {
+	return "nil-safe"
+}
+
+func (r *nilSafeRenderer) Process(_ context.Context, _ types.Values) ([]unstructured.Unstructured, error) {
+	return []unstructured.Unstructured{makePod("nil-safe-pod")}, nil
 }
