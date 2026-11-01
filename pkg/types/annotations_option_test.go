@@ -356,7 +356,12 @@ func TestAnnotationOptionSnapshotAndReuse(t *testing.T) {
 		types.AnnotateObjects(first, opt)
 		types.AnnotateObjects(second, opt)
 
-		first[0].GetAnnotations()["mutated"] = "result-state"
+		// GetAnnotations returns a copy, so mutate the first result's stored
+		// annotation map through SetAnnotations; a later call reusing the
+		// same option must not observe the result state.
+		mutated := maps.Clone(first[0].GetAnnotations())
+		mutated["mutated"] = "result-state"
+		first[0].SetAnnotations(mutated)
 
 		third := []unstructured.Unstructured{*newAnnotationObject("third")}
 		types.AnnotateObjects(third, opt)
