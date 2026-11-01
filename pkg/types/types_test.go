@@ -16,45 +16,6 @@ import (
 
 const valueMutated = "mutated"
 
-func TestValuesClone(t *testing.T) {
-	t.Run("should create a shallow copy", func(t *testing.T) {
-		g := NewWithT(t)
-
-		original := types.Values{
-			"key1": "value1",
-			"key2": 42,
-		}
-
-		clone := original.Clone()
-
-		clone["key1"] = "modified"
-		clone["key3"] = "new"
-
-		g.Expect(original).To(HaveKeyWithValue("key1", "value1"))
-		g.Expect(original).ToNot(HaveKey("key3"))
-	})
-
-	t.Run("should return nil for nil Values", func(t *testing.T) {
-		g := NewWithT(t)
-
-		var v types.Values
-		g.Expect(v.Clone()).To(BeNil())
-	})
-
-	t.Run("should share nested maps (shallow)", func(t *testing.T) {
-		g := NewWithT(t)
-
-		nested := map[string]any{"inner": "original"}
-		original := types.Values{"nested": nested}
-		clone := original.Clone()
-
-		nested["inner"] = valueMutated
-
-		clonedNested := clone["nested"].(map[string]any)
-		g.Expect(clonedNested["inner"]).To(Equal(valueMutated))
-	})
-}
-
 func TestValuesDeepClone(t *testing.T) {
 	t.Run("should return nil for nil Values", func(t *testing.T) {
 		g := NewWithT(t)

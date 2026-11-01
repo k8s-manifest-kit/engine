@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 
 	utilmaps "github.com/k8s-manifest-kit/pkg/util/maps"
@@ -22,15 +21,6 @@ var (
 
 // Values represents the rendering values passed through the pipeline.
 type Values map[string]any
-
-// Clone returns a shallow copy of the Values map (top-level keys only).
-func (v Values) Clone() Values {
-	if v == nil {
-		return nil
-	}
-
-	return maps.Clone(v)
-}
 
 // DeepClone returns a fully independent copy of the Values map.
 // It recursively copies JSON-like trees:
