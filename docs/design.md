@@ -72,6 +72,36 @@ these guarantees.
 pointers and structs with pointer fields are shallow-copied, so isolation
 for those types is the caller's responsibility.
 
+## Annotations
+
+Renderers record provenance on the objects they produce through the
+annotation constants and setters in `pkg/types` (`AnnotationSourceType`,
+`AnnotationSourcePath`, `AnnotationSourceFile`, `AnnotationContentHash`,
+`AnnotationRenderOrigin`, `SetContentHash`, `SetRenderOrigin`).
+`types.AnnotateObjects` centralizes the mechanical application of those
+annotations across a batch of objects:
+
+```go
+types.AnnotateObjects(objects,
+    types.WithSourceAnnotations(map[string]string{
+        types.AnnotationSourceType: "helm",
+        types.AnnotationSourcePath: chartPath,
+    }),
+    types.WithContentHash(true),
+    types.WithRenderOrigin(types.RenderOriginLive),
+)
+```
+
+The helper mutates caller-owned objects in place. Its three phases are
+independent and always run in the order source annotations, content hash,
+render origin, regardless of option order; each phase completes across the
+whole batch before the next starts. Default option values skip their phase
+without writing. Hashing covers the complete object at that point in the
+phase order and is not idempotent; origin-only calls never rehash.
+Package-provided options snapshot their input and are reusable across calls
+and goroutines. Renderers keep their own cloning, provenance discovery, and
+cache lifecycle and call the helper at their existing annotation points.
+
 ## Concurrency
 
 A single engine may serve overlapping `Render` calls: per-request values and
