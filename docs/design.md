@@ -37,9 +37,7 @@ Values are not transported through the render context. The engine calls
 each renderer decides how its source consumes them; renderers that load
 static files may accept values without changing file content.
 
-`pipeline.ApplyPostRenderers` is the current helper for applying a post-render
-chain. The older `Apply`, `ApplyFilters`, and `ApplyTransformers` helpers are
-deprecated compatibility APIs.
+`pipeline.ApplyPostRenderers` is the helper for applying a post-render chain.
 
 ## Render-time values
 

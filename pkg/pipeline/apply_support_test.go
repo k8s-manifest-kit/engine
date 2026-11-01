@@ -22,16 +22,3 @@ func makeObject(kind string, name string) unstructured.Unstructured {
 		},
 	}
 }
-
-func makeObjectWithNamespace(kind string, name string, namespace string) unstructured.Unstructured {
-	return unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "v1",
-			"kind":       kind,
-			"metadata": map[string]any{
-				"name":      name,
-				"namespace": namespace,
-			},
-		},
-	}
-}

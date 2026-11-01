@@ -30,7 +30,7 @@ Each renderer owns its source-selection and renderer-level processing. The engin
 4. Applies engine-level and render-time transformers.
 5. Applies engine-level and render-time post-renderers.
 
-Use `types.BuildPostRendererChain` and `pipeline.ApplyPostRenderers` when working directly with the pipeline package. The older `Apply`, `ApplyFilters`, and `ApplyTransformers` helpers are deprecated.
+Use `types.BuildPostRendererChain` and `pipeline.ApplyPostRenderers` when working directly with the pipeline package.
 
 ## Built-in packages
 

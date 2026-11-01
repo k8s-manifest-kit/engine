@@ -275,7 +275,6 @@ func TestNestedComposition(t *testing.T) {
 
 // Helper functions
 
-//nolint:unparam // Test helper needs consistent signature
 func makePod(name string) unstructured.Unstructured {
 	obj := unstructured.Unstructured{
 		Object: map[string]any{
