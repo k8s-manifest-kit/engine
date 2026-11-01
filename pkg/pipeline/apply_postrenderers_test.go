@@ -95,13 +95,75 @@ func TestApplyPostRenderers(t *testing.T) {
 			makeObject("Pod", "pod1"),
 		}
 
+		errFailing := errors.New("post-renderer failed")
+
 		failing := func(_ context.Context, _ []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
-			return nil, errors.New("post-renderer failed")
+			return nil, errFailing
 		}
 
 		result, err := pipeline.ApplyPostRenderers(ctx, objects, []types.PostRenderer{failing})
 		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("post-renderer error at chain index 0"))
 		g.Expect(err.Error()).To(ContainSubstring("post-renderer failed"))
+		g.Expect(errors.Is(err, errFailing)).To(BeTrue())
+		g.Expect(result).To(BeNil())
+	})
+
+	t.Run("should report the chain index after a successful predecessor", func(t *testing.T) {
+		g := NewWithT(t)
+		objects := []unstructured.Unstructured{
+			makeObject("Pod", "pod1"),
+		}
+
+		errSecond := errors.New("second failed")
+
+		first := func(_ context.Context, objs []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			return objs, nil
+		}
+
+		second := func(_ context.Context, _ []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			return nil, errSecond
+		}
+
+		result, err := pipeline.ApplyPostRenderers(ctx, objects, []types.PostRenderer{first, second})
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("post-renderer error at chain index 1"))
+		g.Expect(errors.Is(err, errSecond)).To(BeTrue())
+		g.Expect(result).To(BeNil())
+	})
+
+	t.Run("should index composed chains as filters, transformers, then post-renderers", func(t *testing.T) {
+		g := NewWithT(t)
+		objects := []unstructured.Unstructured{
+			makeObject("Pod", "pod1"),
+		}
+
+		errExplicit := errors.New("explicit post-renderer failed")
+
+		keepAll := func(_ context.Context, _ unstructured.Unstructured) (bool, error) {
+			return true, nil
+		}
+
+		addLabel := func(_ context.Context, obj unstructured.Unstructured) (unstructured.Unstructured, error) {
+			k8s.SetLabel(&obj, "composed", labelValueTrue)
+
+			return obj, nil
+		}
+
+		explicit := func(_ context.Context, _ []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			return nil, errExplicit
+		}
+
+		chain := types.BuildPostRendererChain(
+			[]types.Filter{keepAll},
+			[]types.Transformer{addLabel},
+			[]types.PostRenderer{explicit},
+		)
+
+		result, err := pipeline.ApplyPostRenderers(ctx, objects, chain)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("post-renderer error at chain index 2"))
+		g.Expect(errors.Is(err, errExplicit)).To(BeTrue())
 		g.Expect(result).To(BeNil())
 	})
 

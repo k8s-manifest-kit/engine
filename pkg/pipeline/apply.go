@@ -37,6 +37,15 @@ func ApplySourceSelectors[S any](
 
 // ApplyPostRenderers chains post-renderers sequentially, feeding each post-renderer's
 // output into the next. Returns the final batch of objects.
+//
+// A failing post-renderer aborts the chain and returns an error of the form
+// "post-renderer error at chain index %d: %w", where the index is the
+// zero-based position in the supplied local chain. Chains built by
+// types.BuildPostRendererChain compose adapted filters first, then
+// transformers, then explicit post-renderers, so the index identifies the
+// position in that composed order. The index is scoped to the call: separate
+// ApplyPostRenderers calls index their own chains independently, and
+// positions are not stable callback identifiers.
 func ApplyPostRenderers(
 	ctx context.Context,
 	objects []unstructured.Unstructured,
@@ -47,12 +56,12 @@ func ApplyPostRenderers(
 	}
 
 	result := objects
-	for _, pr := range postRenderers {
+	for i, pr := range postRenderers {
 		var err error
 
 		result, err = pr(ctx, result)
 		if err != nil {
-			return nil, fmt.Errorf("post-renderer error: %w", err)
+			return nil, fmt.Errorf("post-renderer error at chain index %d: %w", i, err)
 		}
 	}
 

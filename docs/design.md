@@ -38,6 +38,14 @@ each renderer decides how its source consumes them; renderers that load
 static files may accept values without changing file content.
 
 `pipeline.ApplyPostRenderers` is the helper for applying a post-render chain.
+It runs the chain sequentially, feeding each callback's output into the next,
+and a failing callback aborts the chain with an error of the form
+`post-renderer error at chain index %d` wrapping the callback's own error.
+The index is zero-based within the supplied local chain; chains built by
+`types.BuildPostRendererChain` compose adapted filters first, then
+transformers, then explicit post-renderers, so the index identifies the
+position in that composed order. Each call indexes its own chain, and
+positions are not stable callback identifiers.
 
 ## Render-time values
 
@@ -114,7 +122,9 @@ renders are in flight.
 ## Errors and cancellation
 
 Errors retain the failing renderer or pipeline stage where possible and are
-wrapped with context. Context cancellation is propagated to renderer loading,
+wrapped with context. Post-renderer chain failures carry the zero-based
+position in the supplied local chain, as described in
+[Pipeline](#pipeline). Context cancellation is propagated to renderer loading,
 value resolution, and hook execution. Cyclic render-time values are rejected
 before any renderer runs with an error matching both `engine.ErrCyclicValues`
 and the shared `maps.ErrCycle` through `errors.Is`, as described in
