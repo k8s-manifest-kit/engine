@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"maps"
+	"slices"
 
 	"github.com/stretchr/testify/mock"
 
@@ -103,4 +104,45 @@ func (m *mockRenderer) Name() string {
 	args := m.Called()
 
 	return args.String(0)
+}
+
+// hashRenderer is a deterministic types.Renderer that returns deep copies of
+// its source objects annotated with real source and content-hash annotations
+// through types.AnnotateObjects. Sources are owned by the renderer and never
+// annotated, and previously annotated results are never retained as source,
+// so every Process call hashes a fresh copy of the same input.
+type hashRenderer struct {
+	name    string
+	sources []unstructured.Unstructured
+}
+
+func newHashRenderer(name string, sources ...unstructured.Unstructured) *hashRenderer {
+	return &hashRenderer{
+		name:    name,
+		sources: slices.Clone(sources),
+	}
+}
+
+func (r *hashRenderer) Name() string {
+	return r.name
+}
+
+func (r *hashRenderer) Process(
+	_ context.Context,
+	_ types.Values,
+) ([]unstructured.Unstructured, error) {
+	objects := make([]unstructured.Unstructured, 0, len(r.sources))
+	for i := range r.sources {
+		objects = append(objects, *r.sources[i].DeepCopy())
+	}
+
+	types.AnnotateObjects(
+		objects,
+		types.WithSourceAnnotations(map[string]string{
+			types.AnnotationSourceType: r.name,
+		}),
+		types.WithContentHash(true),
+	)
+
+	return objects, nil
 }
